@@ -15,7 +15,7 @@ const CLOUDINARY_URL = process.env.CLOUDINARY_URL;
 // Template configurations with text positions
 const TEMPLATE_CONFIG = {
   'default': {
-    nodeId: '1:2',  // Replace with actual node ID
+    nodeId: '1:14',  // Replace with actual node ID
     headerPosition: { x: 400, y: 180 },
     promoPosition: { x: 400, y: 360 },
     dimensions: { width: 800, height: 600 }
