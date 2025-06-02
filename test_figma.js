@@ -6,7 +6,7 @@ async function testFigmaAccess() {
   let browser = null;
   
   try {
-    console.log('🚀 Testing Figma access with stealth mode...');
+    console.log('🚀 Testing Figma access with API waiting...');
     
     const cookies = JSON.parse(await fs.readFile(path.join(__dirname, 'cookies.json'), 'utf8'));
     console.log('📄 Loaded', cookies.length, 'cookies');
@@ -39,31 +39,82 @@ async function testFigmaAccess() {
     const figmaUrl = `https://www.figma.com/file/${process.env.FIGMA_FILE_KEY}`;
     
     await page.goto(figmaUrl, { 
-      waitUntil: 'domcontentloaded', 
-      timeout: 30000 
+      waitUntil: 'networkidle0', 
+      timeout: 60000 
     });
     
-    // Use setTimeout instead of waitForTimeout
-    console.log('⏳ Waiting for page to load...');
+    console.log('⏳ Waiting for initial page load...');
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    const title = await page.title();
-    console.log('📄 Page title:', title);
-    
-    const pageContent = await page.evaluate(() => {
-      const body = document.body?.innerText || '';
-      return {
-        hasError: body.includes('ERROR') || body.includes('Access denied'),
-        hasLogin: body.includes('Sign in') || body.includes('Log in'),
-        hasFigma: typeof figma !== 'undefined',
-        bodyStart: body.substring(0, 200),
-        url: window.location.href
+    // Wait specifically for Figma API to become available
+    console.log('🎯 Waiting for Figma API to load...');
+    try {
+      await page.waitForFunction(() => {
+        return typeof figma !== 'undefined' && figma.currentPage;
+      }, { timeout: 45000 });
+      
+      console.log('✅ Figma API is now available!');
+      
+      // Test accessing the component
+      const componentTest = await page.evaluate(() => {
+        try {
+          const allNodes = figma.currentPage.findAll();
+          const baseCard = allNodes.find(node => 
+            node.name === 'BaseCard' && node.type === 'COMPONENT'
+          );
+          
+          return {
+            success: true,
+            totalNodes: allNodes.length,
+            foundBaseCard: !!baseCard,
+            baseCardInfo: baseCard ? {
+              id: baseCard.id,
+              name: baseCard.name,
+              type: baseCard.type,
+              x: baseCard.x,
+              y: baseCard.y
+            } : null,
+            currentPageName: figma.currentPage.name
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error.message
+          };
+        }
+      });
+      
+      console.log('🎨 Component test result:', componentTest);
+      
+      return { 
+        success: true, 
+        figmaApiReady: true,
+        componentTest 
       };
-    });
-    
-    console.log('🔍 Page content:', pageContent);
-    
-    return { success: true, pageContent };
+      
+    } catch (apiError) {
+      console.log('❌ Figma API failed to load:', apiError.message);
+      
+      // Get more info about what's on the page
+      const pageInfo = await page.evaluate(() => {
+        return {
+          title: document.title,
+          url: window.location.href,
+          bodyText: document.body?.innerText?.substring(0, 500) || 'No body text',
+          hasCanvas: !!document.querySelector('canvas'),
+          scripts: Array.from(document.scripts).map(s => s.src).filter(Boolean).slice(0, 5)
+        };
+      });
+      
+      console.log('📄 Page info when API failed:', pageInfo);
+      
+      return { 
+        success: false, 
+        figmaApiReady: false,
+        error: apiError.message,
+        pageInfo 
+      };
+    }
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
