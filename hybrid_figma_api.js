@@ -1,5 +1,5 @@
-// hybrid_figma_api_sharp_only.js
-// Simplified version using only Sharp (no Canvas dependencies)
+// hybrid_figma_api.js
+// Complete updated version with auto-sizing fix
 
 const axios = require('axios');
 const sharp = require('sharp');
@@ -12,19 +12,13 @@ const FIGMA_TOKEN = process.env.FIGMA_TOKEN;
 const FIGMA_FILE_KEY = process.env.FIGMA_FILE_KEY || 'RxhmuaosdbiwMrC4Skf2Hr';
 const CLOUDINARY_URL = process.env.CLOUDINARY_URL;
 
-// Template configurations with text positions
+// Template configurations - only need node IDs now!
 const TEMPLATE_CONFIG = {
   'default': {
-    nodeId: '1:14',  // Replace with actual node ID
-    headerPosition: { x: 400, y: 180 },
-    promoPosition: { x: 400, y: 360 },
-    dimensions: { width: 800, height: 600 }
+    nodeId: '1:14'  // Your BaseCard component ID
   },
   'sale': {
-    nodeId: '1:3',
-    headerPosition: { x: 400, y: 150 },
-    promoPosition: { x: 400, y: 380 },
-    dimensions: { width: 800, height: 600 }
+    nodeId: '1:14'  // Can use same component or create variants
   }
 };
 
@@ -70,9 +64,13 @@ class SharpOnlyFigmaAutomation {
     }
   }
 
-  // Create SVG text overlay
-  createTextSvg(headerText, promoText, config) {
-    const { headerPosition, promoPosition, dimensions } = config;
+  // Create SVG text overlay with dynamic sizing
+  createTextSvg(headerText, promoText, width, height) {
+    // Calculate positions based on actual image size
+    const headerX = width / 2;
+    const headerY = height * 0.3;  // 30% from top
+    const promoX = width / 2;
+    const promoY = height * 0.6;   // 60% from top
     
     // Escape special characters for XML
     const escapeXml = (text) => {
@@ -84,13 +82,16 @@ class SharpOnlyFigmaAutomation {
         .replace(/'/g, '&apos;');
     };
 
+    // Calculate font sizes based on image width
+    const headerFontSize = Math.round(width * 0.06);  // 6% of width
+    const promoFontSize = Math.round(width * 0.04);   // 4% of width
+
     // Word wrap function for long text
     const wrapText = (text, maxWidth, fontSize) => {
       const words = text.split(' ');
       const lines = [];
       let currentLine = '';
       
-      // Approximate character width (adjust based on font)
       const charWidth = fontSize * 0.6;
       const maxChars = Math.floor(maxWidth / charWidth);
       
@@ -108,24 +109,25 @@ class SharpOnlyFigmaAutomation {
     };
 
     // Wrap promo text if needed
-    const promoLines = wrapText(promoText, dimensions.width * 0.8, 32);
+    const promoLines = wrapText(promoText, width * 0.8, promoFontSize);
+    const lineHeight = promoFontSize * 1.3;
     
     // Create SVG with text
     const svg = `
-      <svg width="${dimensions.width}" height="${dimensions.height}" xmlns="http://www.w3.org/2000/svg">
+      <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&amp;display=swap');
             .header { 
               fill: #1a1a1a; 
-              font-size: 48px; 
+              font-size: ${headerFontSize}px; 
               font-weight: 700; 
               font-family: 'Inter', Arial, sans-serif;
               text-anchor: middle;
             }
             .promo { 
               fill: #666666; 
-              font-size: 32px; 
+              font-size: ${promoFontSize}px; 
               font-weight: 400;
               font-family: 'Inter', Arial, sans-serif;
               text-anchor: middle;
@@ -138,16 +140,16 @@ class SharpOnlyFigmaAutomation {
         </defs>
         
         <!-- Header with shadow -->
-        <text x="${headerPosition.x + 2}" y="${headerPosition.y + 2}" class="header shadow">
+        <text x="${headerX + 2}" y="${headerY + 2}" class="header shadow">
           ${escapeXml(headerText)}
         </text>
-        <text x="${headerPosition.x}" y="${headerPosition.y}" class="header">
+        <text x="${headerX}" y="${headerY}" class="header">
           ${escapeXml(headerText)}
         </text>
         
         <!-- Promo text with multiple lines -->
         ${promoLines.map((line, index) => `
-          <text x="${promoPosition.x}" y="${promoPosition.y + (index * 40)}" class="promo">
+          <text x="${promoX}" y="${promoY + (index * lineHeight)}" class="promo">
             ${escapeXml(line)}
           </text>
         `).join('')}
@@ -157,17 +159,17 @@ class SharpOnlyFigmaAutomation {
     return Buffer.from(svg);
   }
 
-  // Process image with Sharp
+  // Process image with Sharp - now with auto-sizing
   async addTextOverlay(imageBuffer, headerText, promoText, templateType = 'default') {
     try {
       console.log('🎨 Adding text overlay with Sharp...');
       
-      const config = TEMPLATE_CONFIG[templateType] || TEMPLATE_CONFIG.default;
-      const svgBuffer = this.createTextSvg(headerText, promoText, config);
-      
-      // Get image metadata
+      // Get actual image dimensions
       const metadata = await sharp(imageBuffer).metadata();
       console.log(`📐 Image dimensions: ${metadata.width}x${metadata.height}`);
+      
+      // Create SVG with actual dimensions
+      const svgBuffer = this.createTextSvg(headerText, promoText, metadata.width, metadata.height);
       
       // Composite SVG text over image
       const processedImage = await sharp(imageBuffer)
