@@ -20,6 +20,7 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/run-with-images', limiter);
+app.use('/run', limiter);
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -45,8 +46,59 @@ app.get('/health', (req, res) => {
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    features: ['image-export', 'google-sheets-integration']
+    features: ['basic-automation', 'image-export', 'google-sheets-integration']
   });
+});
+
+// Basic endpoint without images
+app.post('/run', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    console.log('🚀 Starting basic Figma automation...');
+    console.log('Received data:', JSON.stringify(req.body, null, 2));
+    
+    if (!Array.isArray(req.body)) {
+      return res.status(400).json({ 
+        error: 'Request body must be an array of objects' 
+      });
+    }
+
+    for (let i = 0; i < req.body.length; i++) {
+      const item = req.body[i];
+      if (!item.header || !item.promo) {
+        return res.status(400).json({ 
+          error: `Item at index ${i} is missing 'header' or 'promo' field` 
+        });
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    
+    console.log(`✅ Basic automation completed in ${duration}ms`);
+    
+    res.json({
+      success: true,
+      message: 'Basic Figma automation completed successfully (no images)',
+      itemsProcessed: req.body.length,
+      duration: `${duration}ms`,
+      timestamp: new Date().toISOString(),
+      type: 'basic',
+      note: 'This endpoint validates data without image export - use /run-with-images for full automation'
+    });
+
+  } catch (error) {
+    console.error('❌ Basic automation failed:', error);
+    const duration = Date.now() - startTime;
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      duration: `${duration}ms`,
+      timestamp: new Date().toISOString(),
+      type: 'basic'
+    });
+  }
 });
 
 app.post('/run-with-images', authenticateToken, async (req, res) => {
@@ -198,13 +250,14 @@ app.use((error, req, res, next) => {
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Endpoint not found',
-    availableEndpoints: ['/health', '/run-with-images', '/image-results']
+    availableEndpoints: ['/health', '/run', '/run-with-images', '/image-results']
   });
 });
 
 app.listen(PORT, () => {
   console.log(`🌐 Enhanced Server running on port ${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔧 Basic automation: http://localhost:${PORT}/run`);
   console.log(`🖼️  Enhanced automation: http://localhost:${PORT}/run-with-images`);
   console.log(`📊 Image results: http://localhost:${PORT}/image-results`);
   
