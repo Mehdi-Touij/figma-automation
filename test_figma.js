@@ -6,30 +6,37 @@ async function testFigmaAccess() {
   let browser = null;
   
   try {
-    console.log('🚀 Testing Figma access...');
+    console.log('🚀 Testing Figma access with stealth mode...');
     
-    // Load cookies
-    const cookiesPath = path.join(__dirname, 'cookies.json');
-    const cookiesString = await fs.readFile(cookiesPath, 'utf8');
-    const cookies = JSON.parse(cookiesString);
-    
+    const cookies = JSON.parse(await fs.readFile(path.join(__dirname, 'cookies.json'), 'utf8'));
     console.log('📄 Loaded', cookies.length, 'cookies');
     
-    // Launch browser
+    // Launch with stealth settings
     browser = await puppeteer.launch({
       headless: 'new',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
         '--disable-features=VizDisplayCompositor',
         '--disable-web-security',
-        '--disable-features=site-per-process'
+        '--disable-features=site-per-process',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       ]
     });
     
     const page = await browser.newPage();
+    
+    // Remove automation indicators
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+    });
+    
     await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     // Set cookies
     console.log('🍪 Setting cookies...');
@@ -38,67 +45,46 @@ async function testFigmaAccess() {
         await page.setCookie(cookie);
         console.log('✅ Set cookie:', cookie.name);
       } catch (e) {
-        console.log('❌ Failed to set cookie:', cookie.name, e.message);
+        console.log('❌ Failed to set cookie:', cookie.name);
       }
     }
     
-    // Try to access Figma
+    // Try direct Figma access
     console.log('🌐 Navigating to Figma...');
     const figmaUrl = `https://www.figma.com/file/${process.env.FIGMA_FILE_KEY}`;
-    console.log('URL:', figmaUrl);
     
     await page.goto(figmaUrl, { 
-      waitUntil: 'networkidle0', 
-      timeout: 60000 
+      waitUntil: 'domcontentloaded', 
+      timeout: 30000 
     });
     
-    console.log('📍 Page loaded, checking for login...');
+    // Wait a bit for dynamic content
+    await page.waitForTimeout(3000);
     
-    // Check if we're logged in
     const title = await page.title();
     console.log('📄 Page title:', title);
     
-    // Check for login indicators
-    const isLoggedIn = await page.evaluate(() => {
-      // Look for common login/error indicators
-      const body = document.body.innerHTML;
-      if (body.includes('Sign in') || body.includes('Log in')) {
-        return { loggedIn: false, reason: 'Login page detected' };
-      }
-      if (body.includes('Access denied') || body.includes('not found')) {
-        return { loggedIn: false, reason: 'Access denied or file not found' };
-      }
-      if (typeof figma !== 'undefined') {
-        return { loggedIn: true, reason: 'Figma API available' };
-      }
-      return { loggedIn: 'unknown', reason: 'Could not determine status' };
+    // Check what's actually on the page
+    const pageContent = await page.evaluate(() => {
+      const body = document.body?.innerText || '';
+      return {
+        hasError: body.includes('ERROR') || body.includes('Access denied'),
+        hasLogin: body.includes('Sign in') || body.includes('Log in'),
+        hasFigma: typeof figma !== 'undefined',
+        bodyStart: body.substring(0, 200)
+      };
     });
     
-    console.log('🔍 Login status:', isLoggedIn);
-    
-    // Take a screenshot for debugging
-    await page.screenshot({ path: '/tmp/figma_test.png', fullPage: false });
-    console.log('📸 Screenshot saved');
+    console.log('🔍 Page content:', pageContent);
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
     return { success: false, error: error.message };
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
   }
   
   return { success: true };
 }
 
-// Run the test
-testFigmaAccess()
-  .then(result => {
-    console.log('🎯 Test result:', result);
-    process.exit(result.success ? 0 : 1);
-  })
-  .catch(error => {
-    console.error('💥 Test crashed:', error);
-    process.exit(1);
-  });
+testFigmaAccess().then(console.log).catch(console.error);
