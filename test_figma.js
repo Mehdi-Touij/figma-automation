@@ -6,7 +6,7 @@ async function testFigmaAccess() {
   let browser = null;
   
   try {
-    console.log('🚀 Testing Figma access with edit mode...');
+    console.log('🚀 Testing modern Figma API access...');
     
     const cookies = JSON.parse(await fs.readFile(path.join(__dirname, 'cookies.json'), 'utf8'));
     console.log('📄 Loaded', cookies.length, 'cookies');
@@ -36,123 +36,149 @@ async function testFigmaAccess() {
       }
     }
     
-    // Try the old /file/ URL format first (more likely to have figma API)
-    console.log('🌐 Navigating to Figma (old format)...');
+    console.log('🌐 Navigating to Figma...');
     const figmaUrl = `https://www.figma.com/file/${process.env.FIGMA_FILE_KEY}`;
-    console.log('URL:', figmaUrl);
     
     await page.goto(figmaUrl, { 
       waitUntil: 'networkidle0', 
       timeout: 60000 
     });
     
-    console.log('⏳ Waiting for page to stabilize...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    console.log('⏳ Waiting for modern Figma to load...');
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
-    // Check current status
-    const initialStatus = await page.evaluate(() => {
-      return {
-        title: document.title,
+    // Test multiple possible API access patterns
+    const apiTest = await page.evaluate(() => {
+      const results = {
+        timestamp: new Date().toISOString(),
         url: window.location.href,
-        hasFigma: typeof figma !== 'undefined',
-        bodySnippet: document.body?.innerText?.substring(0, 300) || 'No body text'
+        title: document.title
       };
-    });
-    
-    console.log('📍 Initial status:', initialStatus);
-    
-    // If figma API not available, try some interactions
-    if (!initialStatus.hasFigma) {
-      console.log('🖱️ Figma API not ready, trying interactions...');
       
-      // Try clicking on the canvas or any edit-related elements
-      try {
-        // Look for and click edit button, canvas, or similar
-        await page.evaluate(() => {
-          // Try clicking canvas
-          const canvas = document.querySelector('canvas');
-          if (canvas) {
-            canvas.click();
-            console.log('Clicked canvas');
-          }
-          
-          // Try clicking any "edit" or similar buttons
-          const editButtons = Array.from(document.querySelectorAll('button, a')).filter(el => 
-            el.textContent?.toLowerCase().includes('edit') ||
-            el.textContent?.toLowerCase().includes('open') ||
-            el.textContent?.toLowerCase().includes('continue')
-          );
-          
-          if (editButtons.length > 0) {
-            editButtons[0].click();
-            console.log('Clicked edit button:', editButtons[0].textContent);
-          }
-        });
-        
-        console.log('⏳ Waiting after interactions...');
-        await new Promise(resolve => setTimeout(resolve, 15000));
-        
-      } catch (interactionError) {
-        console.log('❌ Interaction failed:', interactionError.message);
+      // Test classic figma object
+      if (typeof figma !== 'undefined') {
+        results.classicFigma = {
+          available: true,
+          hasCurrentPage: !!figma.currentPage,
+          properties: Object.keys(figma)
+        };
+      } else {
+        results.classicFigma = { available: false };
       }
-    }
-    
-    // Final check for Figma API
-    console.log('🎯 Final check for Figma API...');
-    const finalResult = await page.evaluate(() => {
-      try {
-        if (typeof figma === 'undefined') {
-          return {
-            success: false,
-            hasFigma: false,
-            message: 'figma object not found',
-            globalObjects: Object.keys(window).filter(key => key.toLowerCase().includes('fig')),
-            url: window.location.href,
-            title: document.title
-          };
-        }
-        
-        if (!figma.currentPage) {
-          return {
-            success: false,
-            hasFigma: true,
-            message: 'figma object exists but currentPage is null',
-            figmaProperties: Object.keys(figma),
-            url: window.location.href
-          };
-        }
-        
-        // Try to find BaseCard component
-        const allNodes = figma.currentPage.findAll();
-        const baseCard = allNodes.find(node => 
-          node.name === 'BaseCard' && node.type === 'COMPONENT'
-        );
-        
-        return {
-          success: true,
-          hasFigma: true,
-          currentPageName: figma.currentPage.name,
-          totalNodes: allNodes.length,
-          foundBaseCard: !!baseCard,
-          baseCardDetails: baseCard ? {
-            id: baseCard.id,
-            name: baseCard.name,
-            type: baseCard.type
-          } : null,
-          nodeNames: allNodes.slice(0, 10).map(n => n.name) // First 10 node names for debugging
+      
+      // Test Fig object
+      if (typeof Fig !== 'undefined') {
+        results.figObject = {
+          available: true,
+          properties: Object.keys(Fig),
+          type: typeof Fig
         };
         
-      } catch (error) {
-        return {
-          success: false,
-          error: error.message,
-          hasFigma: typeof figma !== 'undefined'
+        // Try to access common properties
+        try {
+          if (Fig.currentPage) {
+            results.figObject.currentPage = {
+              name: Fig.currentPage.name,
+              children: Fig.currentPage.children?.length || 0
+            };
+          }
+        } catch (e) {
+          results.figObject.currentPageError = e.message;
+        }
+      } else {
+        results.figObject = { available: false };
+      }
+      
+      // Test for editor state objects
+      if (typeof EditorTypeConfig !== 'undefined') {
+        results.editorConfig = {
+          available: true,
+          properties: Object.keys(EditorTypeConfig)
         };
       }
+      
+      // Look for any objects that might contain page/node data
+      const potentialApis = [];
+      for (const key of Object.keys(window)) {
+        if (key.toLowerCase().includes('fig') && typeof window[key] === 'object' && window[key] !== null) {
+          try {
+            const obj = window[key];
+            if (obj.currentPage || obj.findAll || obj.createComponent) {
+              potentialApis.push({
+                name: key,
+                hasCurrentPage: !!obj.currentPage,
+                hasFindAll: typeof obj.findAll === 'function',
+                hasCreateComponent: typeof obj.createComponent === 'function',
+                properties: Object.keys(obj).slice(0, 10)
+              });
+            }
+          } catch (e) {
+            // Skip objects that throw errors when accessed
+          }
+        }
+      }
+      results.potentialApis = potentialApis;
+      
+      // Try to find any components on the page using different methods
+      const componentSearch = {
+        methods: []
+      };
+      
+      // Method 1: Classic figma API
+      if (typeof figma !== 'undefined' && figma.currentPage) {
+        try {
+          const nodes = figma.currentPage.findAll();
+          const baseCard = nodes.find(n => n.name === 'BaseCard');
+          componentSearch.methods.push({
+            method: 'classic-figma',
+            totalNodes: nodes.length,
+            foundBaseCard: !!baseCard,
+            nodeNames: nodes.slice(0, 5).map(n => n.name)
+          });
+        } catch (e) {
+          componentSearch.methods.push({
+            method: 'classic-figma',
+            error: e.message
+          });
+        }
+      }
+      
+      // Method 2: Fig object
+      if (typeof Fig !== 'undefined') {
+        try {
+          if (Fig.currentPage && typeof Fig.currentPage.findAll === 'function') {
+            const nodes = Fig.currentPage.findAll();
+            const baseCard = nodes.find(n => n.name === 'BaseCard');
+            componentSearch.methods.push({
+              method: 'Fig-object',
+              totalNodes: nodes.length,
+              foundBaseCard: !!baseCard,
+              nodeNames: nodes.slice(0, 5).map(n => n.name)
+            });
+          }
+        } catch (e) {
+          componentSearch.methods.push({
+            method: 'Fig-object',
+            error: e.message
+          });
+        }
+      }
+      
+      results.componentSearch = componentSearch;
+      
+      return results;
     });
     
-    console.log('🎨 Final result:', finalResult);
-    return finalResult;
+    console.log('🎨 Modern API test results:', JSON.stringify(apiTest, null, 2));
+    
+    // Determine if we found a working API
+    const hasWorkingApi = apiTest.componentSearch.methods.some(m => m.foundBaseCard);
+    
+    return {
+      success: hasWorkingApi,
+      apiTest,
+      foundBaseCard: hasWorkingApi
+    };
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
@@ -164,7 +190,7 @@ async function testFigmaAccess() {
 
 testFigmaAccess()
   .then(result => {
-    console.log('🎯 Complete test result:', result);
+    console.log('🎯 Final test result:', result.success ? 'SUCCESS!' : 'FAILED');
     process.exit(result.success ? 0 : 1);
   })
   .catch(error => {
