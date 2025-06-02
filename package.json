@@ -4,7 +4,7 @@
   "description": "Enhanced Figma automation",
   "main": "enhanced_server.js",
   "scripts": {
-    "start": "node enhanced_server.js"
+    "start": "node hybrid_server.js"
   },
   "dependencies": {
   "express": "^4.18.2",
