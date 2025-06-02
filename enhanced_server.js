@@ -46,8 +46,64 @@ app.get('/health', (req, res) => {
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    features: ['basic-automation', 'image-export', 'google-sheets-integration']
+    features: ['basic-automation', 'image-export', 'google-sheets-integration', 'figma-test']
   });
+});
+
+// Figma test endpoint for debugging
+app.get('/test-figma', async (req, res) => {
+  try {
+    console.log('🧪 Running Figma test...');
+    
+    const child = spawn('node', ['test_figma.js'], {
+      stdio: ['inherit', 'pipe', 'pipe']
+    });
+
+    let output = '';
+    let error = '';
+
+    child.stdout.on('data', (data) => {
+      const text = data.toString();
+      output += text;
+      console.log('Test output:', text.trim());
+    });
+
+    child.stderr.on('data', (data) => {
+      const text = data.toString();
+      error += text;
+      console.error('Test error:', text.trim());
+    });
+
+    child.on('close', (code) => {
+      console.log(`🔍 Figma test completed with code ${code}`);
+      res.json({
+        success: code === 0,
+        code,
+        output,
+        error,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Timeout after 2 minutes
+    setTimeout(() => {
+      child.kill();
+      res.json({
+        success: false,
+        error: 'Test timed out after 2 minutes',
+        output,
+        error: error + '\nProcess timed out'
+      });
+    }, 120000);
+    
+  } catch (e) {
+    console.error('❌ Failed to start Figma test:', e);
+    res.status(500).json({ 
+      success: false,
+      error: e.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Basic endpoint without images
@@ -250,13 +306,14 @@ app.use((error, req, res, next) => {
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Endpoint not found',
-    availableEndpoints: ['/health', '/run', '/run-with-images', '/image-results']
+    availableEndpoints: ['/health', '/run', '/run-with-images', '/image-results', '/test-figma']
   });
 });
 
 app.listen(PORT, () => {
   console.log(`🌐 Enhanced Server running on port ${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/health`);
+  console.log(`🧪 Figma test: http://localhost:${PORT}/test-figma`);
   console.log(`🔧 Basic automation: http://localhost:${PORT}/run`);
   console.log(`🖼️  Enhanced automation: http://localhost:${PORT}/run-with-images`);
   console.log(`📊 Image results: http://localhost:${PORT}/image-results`);
