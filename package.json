@@ -1,22 +1,22 @@
 {
-    "name": "figma-updater-enhanced",
-    "version": "2.0.0",
-    "description": "Enhanced Figma automation with image export",
-    "main": "enhanced_server.js",
-    "scripts": {
-      "start": "node enhanced_server.js"
-    },
-    "dependencies": {
-      "express": "^4.18.2",
-      "puppeteer": "^21.5.2",
-      "cors": "^2.8.5",
-      "helmet": "^7.1.0",
-      "express-rate-limit": "^7.1.5",
-      "dotenv": "^16.3.1",
-      "axios": "^1.6.2",
-      "form-data": "^4.0.0"
-    },
-    "engines": {
-      "node": ">=18.0.0"
-    }
+  "name": "figma-updater-enhanced",
+  "version": "2.0.0",
+  "description": "Enhanced Figma automation",
+  "main": "enhanced_server.js",
+  "scripts": {
+    "start": "node enhanced_server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^22.10.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.2",
+    "form-data": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
+}
