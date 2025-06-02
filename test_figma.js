@@ -11,7 +11,6 @@ async function testFigmaAccess() {
     const cookies = JSON.parse(await fs.readFile(path.join(__dirname, 'cookies.json'), 'utf8'));
     console.log('📄 Loaded', cookies.length, 'cookies');
     
-    // Launch with stealth settings
     browser = await puppeteer.launch({
       headless: 'new',
       args: [
@@ -19,26 +18,13 @@ async function testFigmaAccess() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-blink-features=AutomationControlled',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-web-security',
-        '--disable-features=site-per-process',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       ]
     });
     
     const page = await browser.newPage();
-    
-    // Remove automation indicators
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined,
-      });
-    });
-    
     await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    // Set cookies
     console.log('🍪 Setting cookies...');
     for (const cookie of cookies) {
       try {
@@ -49,7 +35,6 @@ async function testFigmaAccess() {
       }
     }
     
-    // Try direct Figma access
     console.log('🌐 Navigating to Figma...');
     const figmaUrl = `https://www.figma.com/file/${process.env.FIGMA_FILE_KEY}`;
     
@@ -58,24 +43,27 @@ async function testFigmaAccess() {
       timeout: 30000 
     });
     
-    // Wait a bit for dynamic content
-    await page.waitForTimeout(3000);
+    // Use setTimeout instead of waitForTimeout
+    console.log('⏳ Waiting for page to load...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     const title = await page.title();
     console.log('📄 Page title:', title);
     
-    // Check what's actually on the page
     const pageContent = await page.evaluate(() => {
       const body = document.body?.innerText || '';
       return {
         hasError: body.includes('ERROR') || body.includes('Access denied'),
         hasLogin: body.includes('Sign in') || body.includes('Log in'),
         hasFigma: typeof figma !== 'undefined',
-        bodyStart: body.substring(0, 200)
+        bodyStart: body.substring(0, 200),
+        url: window.location.href
       };
     });
     
     console.log('🔍 Page content:', pageContent);
+    
+    return { success: true, pageContent };
     
   } catch (error) {
     console.error('❌ Test failed:', error.message);
@@ -83,8 +71,14 @@ async function testFigmaAccess() {
   } finally {
     if (browser) await browser.close();
   }
-  
-  return { success: true };
 }
 
-testFigmaAccess().then(console.log).catch(console.error);
+testFigmaAccess()
+  .then(result => {
+    console.log('🎯 Final result:', result);
+    process.exit(result.success ? 0 : 1);
+  })
+  .catch(error => {
+    console.error('💥 Test crashed:', error);
+    process.exit(1);
+  });
