@@ -1,11 +1,29 @@
 [
   {
-    "name": "figma_session",
+    "name": "figma.session",
     "value": "BAh7CEkiD3Nlc3Npb25faWQGOgZFVG86HVJhY2s6OlNlc3Npb246OlNlc3Npb25JZAY6D0BwdWJsaWNfaWRJIkUwNWIyOTQ4MzhjYWM1NWRiZDZlZGYxOTljN2IwYmExODdkNTZkNDRmY2YwMmQ3NTdmOWFhMjhhM2Y4OWE1ZDYxBjsARkkiCmZsYXNoBjsARnsASSINdXNlcm5hbWUGOwBGSSIddG91aWplbG1laGRpQG91dGxvb2suY29tBjsAVA%3D%3D--4911e26e64b687a39ebb37eff7d439524a21ad26",
     "domain": ".figma.com",
     "path": "/",
     "httpOnly": true,
     "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "figma.auth_id",
+    "value": "ffpa_MzkwZTI3OWMtYzI0Yi00ZWE4LThiZTMtNWU4ZTFiMjZmNzA4OmNlNTBiNThlMGM2Y2UyNDViYmQ1ZDQ0NTY3Y2VmMjY0ZGY2NDhlNTk4YTg3NGEzZmRkNTZjY2NjOWFiMDQzY2I",
+    "domain": ".figma.com",
+    "path": "/",
+    "httpOnly": false,
+    "secure": true,
     "sameSite": "None"
+  },
+  {
+    "name": "__Host-figma.auth",
+    "value": "%7B%221219079753715671743%22%3A%22figtkn.3646481232.authn.enF2buXPUxTnk8bAyfXwjd%22%7D",
+    "domain": "www.figma.com",
+    "path": "/",
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Lax"
   }
 ]
